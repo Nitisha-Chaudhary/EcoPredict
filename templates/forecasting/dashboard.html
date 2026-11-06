@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Operations dashboard{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
+{% block breadcrumb %}Operations overview{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">RENEWABLE ENERGY INTELLIGENCE</div><h1>Your energy outlook, at a glance.</h1><p>Portfolio forecasts and weather conditions for your latest saved prediction.</p></div><div class="heading-actions"><span class="live-clock" id="liveClock" aria-live="off"></span><a class="button primary" href="{% url 'site_create' %}"><span class="button-plus">＋</span> Add energy site</a></div></div>
+
+<div class="metric-grid dashboard-metrics">
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">INSTALLED CAPACITY</span><span class="metric-icon green">◈</span></div><div class="metric-value">{{ total_capacity|floatformat:1 }}<span class="metric-unit">kW</span></div><div class="metric-caption">Combined across all energy sites</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">TODAY'S PREDICTED GENERATION</span><span class="metric-icon yellow">☀</span></div><div class="metric-value">{{ today_energy|floatformat:1 }}<span class="metric-unit">kWh</span></div><div class="metric-caption">Available forecast hours today (UTC)</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">FORECAST CONFIDENCE</span><span class="metric-icon blue">ⓘ</span></div><div class="metric-value metric-status">Not evaluated</div><div class="metric-caption">Requires measured output for validation</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">FORECAST CAPACITY FACTOR</span><span class="metric-icon green">◔</span></div><div class="metric-value">{% if generation_efficiency != None %}{{ generation_efficiency|floatformat:1 }}{% else %}—{% endif %}<span class="metric-unit">%</span></div><div class="metric-caption">Estimated output ÷ available capacity</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">ESTIMATED ENERGY · SELECTED VIEW</span><span class="metric-icon green">ϟ</span></div><div class="metric-value">{{ total_forecast_energy|floatformat:1 }}<span class="metric-unit">kWh</span></div><div class="metric-caption">Sum of the combined chart values shown</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">WIND CONTRIBUTION</span><span class="metric-icon blue">↗</span></div><div class="metric-value">{{ wind_forecast_energy|floatformat:1 }}<span class="metric-unit">kWh</span></div><div class="metric-caption">Within the selected chart window</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">SOLAR CONTRIBUTION</span><span class="metric-icon yellow">☼</span></div><div class="metric-value">{{ solar_forecast_energy|floatformat:1 }}<span class="metric-unit">kWh</span></div><div class="metric-caption">Within the selected chart window</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">AVERAGE WIND SPEED</span><span class="metric-icon blue">≋</span></div><div class="metric-value">{% if average_wind_speed != None %}{{ average_wind_speed|floatformat:1 }}{% else %}—{% endif %}<span class="metric-unit">m/s</span></div><div class="metric-caption">Latest hourly forecast weather</div></article>
+    <article class="metric-card"><div class="metric-top"><span class="metric-label">SOLAR IRRADIANCE</span><span class="metric-icon orange">☀</span></div><div class="metric-value">{% if average_irradiance != None %}{{ average_irradiance|floatformat:0 }}{% else %}—{% endif %}<span class="metric-unit">W/m²</span></div><div class="metric-caption">Average across latest outlook</div></article>
+</div>
+
+{% if latest %}
+<div class="dashboard-grid">
+    <section class="chart-card dashboard-chart">
+        <div class="chart-heading"><div><div class="eyebrow">PORTFOLIO FORECAST · {{ chart_hour_count }} HOURLY VALUES</div><h2>Wind, solar &amp; combined generation</h2></div><div class="chart-legend"><span><i class="legend-wind"></i> Wind</span><span><i class="legend-solar"></i> Solar</span><span><i class="legend-total"></i> Combined</span></div></div>
+        <form class="chart-filters" method="get"><label for="chartDate">Start date</label><input id="chartDate" name="date" type="date" value="{{ selected_date }}"><label for="chartPeriod">View</label><select id="chartPeriod" name="period"><option value="24h" {% if chart_period == "24h" %}selected{% endif %}>24 hours</option><option value="7d" {% if chart_period == "7d" %}selected{% endif %}>7 days</option><option value="30d" {% if chart_period == "30d" %}selected{% endif %}>30 days</option></select><button class="button secondary" type="submit">Update chart</button></form>
+        {% if chart_has_data %}<div class="chart-canvas"><canvas id="portfolioChart" aria-label="Portfolio wind, solar and combined forecast chart"></canvas></div>{% else %}<div class="chart-empty">No saved forecast points are available for this date. Forecast data is limited to the requested weather horizon (up to 72 hours).</div>{% endif %}
+        <div class="chart-total">Selected chart total: <strong>{{ total_forecast_energy|floatformat:1 }} kWh</strong> <span>— sum of the combined hourly values shown</span></div>
+    </section>
+    <section class="chart-card source-card"><div class="chart-heading"><div><div class="eyebrow">SELECTED CHART WINDOW</div><h2>Wind and solar mix</h2></div></div><div class="source-chart-canvas"><canvas id="sourceChart" aria-label="Wind and solar forecast comparison chart"></canvas></div><div class="source-total"><strong>{{ total_forecast_energy|floatformat:1 }} kWh</strong><span>combined estimated energy</span></div></section>
+</div>
+
+<div class="section-heading"><div><div class="eyebrow">WEATHER MONITOR</div><h2>Conditions at {{ latest.site.name }}</h2></div><span class="weather-source">Open-Meteo · forecast for {{ latest.site.location }}</span></div>
+<div class="weather-grid">
+    <article class="weather-card"><span class="weather-symbol">☁</span><div><span class="metric-label">TEMPERATURE</span><strong>{% if latest_weather %}{{ latest_weather.temperature_c|floatformat:1 }} °C{% else %}—{% endif %}</strong><small>First forecast hour</small></div></article>
+    <article class="weather-card"><span class="weather-symbol blue-text">≋</span><div><span class="metric-label">WIND</span><strong>{% if latest_weather %}{{ latest_weather.wind_speed_ms|floatformat:1 }} m/s{% else %}—{% endif %}</strong><small>{% if latest_weather %}{{ latest_weather.wind_direction_deg|floatformat:0 }}° direction{% else %}No weather data{% endif %}</small></div></article>
+    <article class="weather-card"><span class="weather-symbol yellow-text">☼</span><div><span class="metric-label">CLOUD COVER</span><strong>{% if latest_weather %}{{ latest_weather.cloud_cover_percent }}%{% else %}—{% endif %}</strong><small>Hourly forecast estimate</small></div></article>
+    <article class="weather-card"><span class="weather-symbol blue-text">♨</span><div><span class="metric-label">HUMIDITY</span><strong>{% if latest_weather.relative_humidity_percent != None %}{{ latest_weather.relative_humidity_percent }}%{% else %}—{% endif %}</strong><small>Relative humidity</small></div></article>
+    <article class="weather-card"><span class="weather-symbol blue-text">☂</span><div><span class="metric-label">RAIN PROBABILITY</span><strong>{% if latest_weather.precipitation_probability_percent != None %}{{ latest_weather.precipitation_probability_percent }}%{% else %}—{% endif %}</strong><small>Hourly probability</small></div></article>
+    <article class="weather-card"><span class="weather-symbol yellow-text">☀</span><div><span class="metric-label">BEST SOLAR HOUR</span><strong>{% if best_solar_hour %}{{ best_solar_hour.timestamp|date:"H:i" }} UTC{% else %}—{% endif %}</strong><small>{% if best_solar_hour %}{{ best_solar_hour.solar_power_kw|floatformat:1 }} kW estimated output{% else %}Generate a forecast to see{% endif %}</small></div></article>
+    <article class="weather-card"><span class="weather-symbol yellow-text">↗</span><div><span class="metric-label">SUNRISE / SUNSET</span><strong>{% if latest_weather.sunrise %}{{ latest_weather.sunrise|date:"H:i" }} / {{ latest_weather.sunset|date:"H:i" }}{% else %}—{% endif %}</strong><small>UTC · local API timezone UTC</small></div></article>
+</div>
+<div class="insight-panel"><div class="eyebrow">FORECAST INSIGHTS · RULE-BASED</div><div class="insight-list">{% for insight in insights %}<div class="insight-item"><span class="insight-icon">✦</span><p>{{ insight }}</p></div>{% empty %}<p>Generate a forecast to receive weather-based insights.</p>{% endfor %}</div><div class="insight-footnote">These observations are derived from weather inputs and the simplified generation model; they are not AI recommendations.</div></div>
+
+{% else %}
+<div class="welcome-card"><div class="welcome-copy"><div class="eyebrow">LET'S GET STARTED</div><h2>Your first forecast is waiting.</h2><p>Add a site with its location and installed wind or solar capacity. Hourly estimates use weather forecasts for that location.</p><a class="button primary" href="{% url 'site_create' %}">Add your first site <span>→</span></a></div><div class="welcome-art"><div class="sun"></div><div class="hill hill-back"></div><div class="hill hill-front"></div><div class="turbine"><i></i><b></b><em></em><span></span></div><div class="solar-panel"></div></div></div>
+{% endif %}
+
+<div class="section-heading"><div><div class="eyebrow">YOUR PORTFOLIO</div><h2>Energy sites</h2></div><a class="text-link" href="{% url 'site_list' %}">All sites <span>→</span></a></div>
+{% if sites %}<div class="site-grid">{% for site in sites|slice:":3" %}<a class="site-card" href="{% url 'site_detail' site.pk %}"><div class="site-card-top"><span class="site-symbol">◈</span><span class="site-open">↗</span></div><h3>{{ site.name }}</h3><p class="site-location">⌖ {{ site.location }}</p><div class="site-capacities"><div><span class="wind-key">WIND</span><strong>{{ site.wind_capacity_kw|floatformat:1 }} <small>kW</small></strong></div><div><span class="solar-key">SOLAR</span><strong>{{ site.solar_capacity_kw|floatformat:1 }} <small>kW</small></strong></div></div><div class="site-card-foot"><span>Combined installed capacity</span><strong>{{ site.total_capacity_kw|floatformat:1 }} kW</strong></div></a>{% endfor %}</div>{% else %}<div class="empty-inline"><span class="empty-icon">◈</span><div><strong>No sites yet</strong><p>Add your first wind or solar site to start a forecast.</p></div><a class="text-link" href="{% url 'site_create' %}">Add site →</a></div>{% endif %}
+
+<div class="section-heading"><div><div class="eyebrow">RECENT ACTIVITY</div><h2>Forecast history</h2></div><div class="section-actions"><a class="text-link" href="{% url 'analytics' %}">Analytics <span>→</span></a><a class="text-link" href="{% url 'forecast_list' %}">History <span>→</span></a></div></div>
+{% if forecasts %}<div class="table-wrap"><table><thead><tr><th>SITE</th><th>CREATED</th><th>HORIZON</th><th>ENERGY</th><th></th></tr></thead><tbody>{% for forecast in forecasts %}<tr><td><a class="table-primary" href="{% url 'forecast_detail' forecast.pk %}">{{ forecast.site.name }}</a></td><td>{{ forecast.created_at|date:"M j, Y · H:i" }} UTC</td><td>{{ forecast.horizon_hours }} hours</td><td class="table-energy">{{ forecast.total_energy_kwh|floatformat:1 }} kWh</td><td><a class="row-arrow" href="{% url 'forecast_detail' forecast.pk %}">→</a></td></tr>{% endfor %}</tbody></table></div>{% else %}<div class="empty-inline"><span class="empty-icon">◷</span><div><strong>No forecasts yet</strong><p>Generate one from any of your energy sites.</p></div></div>{% endif %}
+<div class="footnote">Estimates use Open-Meteo weather forecasts and simplified wind and solar power models. Forecast confidence and MAE/RMSE/R² are not available without measured generation data. Capacity factor is an estimate, not plant efficiency. Actual production may differ.</div>
+{% endblock %}
+{% block scripts %}
+{% if latest %}
+{{ chart_labels|json_script:"chart-labels" }}{{ wind_data|json_script:"wind-data" }}{{ solar_data|json_script:"solar-data" }}{{ total_data|json_script:"total-data" }}{{ source_energy_data|json_script:"source-energy-data" }}{{ source_energy_labels|json_script:"source-energy-labels" }}
+<script>
+{% if chart_has_data %}
+const labels = JSON.parse(document.getElementById("chart-labels").textContent);
+const wind = JSON.parse(document.getElementById("wind-data").textContent);
+const solar = JSON.parse(document.getElementById("solar-data").textContent);
+const total = JSON.parse(document.getElementById("total-data").textContent);
+new Chart(document.getElementById("portfolioChart"), {
+    type: "line",
+    data: { labels, datasets: [
+        { label: "Wind", data: wind, borderColor: "#4b8ff5", backgroundColor: "#4b8ff51a", fill: true, tension: .35, pointRadius: 0, borderWidth: 2 },
+        { label: "Solar", data: solar, borderColor: "#e7b848", backgroundColor: "#e7b8481a", fill: true, tension: .35, pointRadius: 0, borderWidth: 2 },
+        { label: "Combined", data: total, borderColor: "#18815f", backgroundColor: "#18815f18", fill: true, tension: .35, pointRadius: 0, borderWidth: 2.5 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(2)} ${"{{ chart_period }}" === "24h" ? "kW" : "kWh"}` } } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 10, color: "#80918b" } }, y: { beginAtZero: true, title: { display: true, text: "{{ chart_period }}" === "24h" ? "Power (kW)" : "Estimated energy (kWh)", color: "#80918b" }, grid: { color: "#edf1ef" }, ticks: { color: "#80918b" } } } }
+});
+{% endif %}
+new Chart(document.getElementById("sourceChart"), {
+    type: "bar",
+    data: { labels: JSON.parse(document.getElementById("source-energy-labels").textContent), datasets: [{ data: JSON.parse(document.getElementById("source-energy-data").textContent), backgroundColor: ["#6e9ce0", "#e7bd59"], borderRadius: 7, maxBarThickness: 46 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { color: "#80918b" } }, y: { beginAtZero: true, title: { display: true, text: "Estimated energy (kWh)", color: "#80918b" }, grid: { color: "#edf1ef" }, ticks: { color: "#80918b" } } } }
+});
+</script>
+{% endif %}
+<script>
+const clock = document.getElementById("liveClock");
+const updateClock = () => { clock.textContent = new Intl.DateTimeFormat(undefined, { weekday: "short", year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date()); };
+updateClock();
+setInterval(updateClock, 60000);
+</script>
+{% endblock %}

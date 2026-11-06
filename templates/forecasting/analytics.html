@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Analytics &amp; reports{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
+{% block breadcrumb %}Analytics &amp; reports{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">PORTFOLIO PERFORMANCE</div><h1>Analytics &amp; reports</h1><p>Compare saved wind and solar forecasts across your sites and prediction history.</p></div><a class="button primary" href="{% url report_url %}">Download CSV report <span>↓</span></a></div>
+{% if daily_labels %}
+<section class="chart-card analytics-chart"><div class="chart-heading"><div><div class="eyebrow">SAVED FORECAST RUNS</div><h2>Estimated generation by run date</h2></div><div class="chart-legend"><span><i class="legend-wind"></i> Wind</span><span><i class="legend-solar"></i> Solar</span><span><i class="legend-total"></i> Combined</span></div></div><div class="chart-canvas"><canvas id="historyChart" aria-label="Daily forecast generation history"></canvas></div></section>
+<div class="section-heading"><div><div class="eyebrow">LATEST FORECAST BY SITE</div><h2>Wind and solar comparison</h2></div></div>
+{% if site_rows %}<div class="table-wrap"><table><thead><tr><th>SITE</th><th>LOCATION</th><th>FORECAST</th><th>WIND</th><th>SOLAR</th><th>COMBINED</th><th></th></tr></thead><tbody>{% for row in site_rows %}<tr><td><a class="table-primary" href="{% url 'site_detail' row.site.pk %}">{{ row.site.name }}</a></td><td>{{ row.site.location }}</td><td>{{ row.forecast.created_at|date:"M j, Y · H:i" }} UTC</td><td>{{ row.wind_energy|floatformat:1 }} kWh</td><td>{{ row.solar_energy|floatformat:1 }} kWh</td><td class="table-energy">{{ row.forecast.total_energy_kwh|floatformat:1 }} kWh</td><td><a class="row-arrow" href="{% url 'forecast_detail' row.forecast.pk %}" aria-label="View forecast">→</a></td></tr>{% endfor %}</tbody></table></div>{% endif %}
+<div class="report-note"><span class="insight-icon">i</span><p><strong>About model accuracy</strong> — MAE, RMSE, and R² are not shown because no measured energy-production observations have been supplied to validate these estimates. Forecast history records predictions, not actual output.</p></div>
+{% else %}
+<div class="empty-state"><div class="empty-icon large">▥</div><h2>No forecast analytics yet</h2><p>Generate forecasts for your sites to build an energy comparison and prediction history.</p><a class="button primary" href="{% url 'site_list' %}">View energy sites <span>→</span></a></div>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+{% if daily_labels %}
+{{ daily_labels|json_script:"daily-labels" }}{{ daily_wind|json_script:"daily-wind" }}{{ daily_solar|json_script:"daily-solar" }}{{ daily_total|json_script:"daily-total" }}
+<script>
+new Chart(document.getElementById("historyChart"), {
+    type: "bar",
+    data: { labels: JSON.parse(document.getElementById("daily-labels").textContent), datasets: [
+        { label: "Wind", data: JSON.parse(document.getElementById("daily-wind").textContent), backgroundColor: "#6e9ce0", borderRadius: 4 },
+        { label: "Solar", data: JSON.parse(document.getElementById("daily-solar").textContent), backgroundColor: "#e7bd59", borderRadius: 4 },
+        { label: "Combined", data: JSON.parse(document.getElementById("daily-total").textContent), type: "line", borderColor: "#18815f", backgroundColor: "#18815f18", tension: .3, pointRadius: 3, borderWidth: 2 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 12, color: "#80918b" } }, y: { beginAtZero: true, title: { display: true, text: "Estimated energy (kWh)", color: "#80918b" }, grid: { color: "#edf1ef" }, ticks: { color: "#80918b" } } } }
+});
+</script>
+{% endif %}
+{% endblock %}

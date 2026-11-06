@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ forecast.site.name }} forecast{% endblock %}
+{% block breadcrumb %}<a href="{% url 'forecast_list' %}">Forecast history</a> <span>/</span> {{ forecast.site.name }}{% endblock %}
+{% block head %}<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">HOURLY PREDICTION</div><h1>{{ forecast.site.name }} forecast</h1><p>Generated {{ forecast.created_at|date:"M j, Y · H:i" }} UTC <span class="muted-separator">·</span> {{ forecast.horizon_hours }}-hour outlook</p></div><div class="heading-actions"><a class="button secondary" href="{% url 'site_detail' forecast.site.pk %}">← Back to site</a><a class="button secondary" href="{% url 'report_csv' %}">Download CSV</a></div></div>
+<div class="forecast-summary"><div class="summary-main"><span class="summary-icon">ϟ</span><div><span class="metric-label">ESTIMATED ENERGY · NEXT {{ forecast.horizon_hours }} HOURS</span><strong>{{ forecast.total_energy_kwh|floatformat:1 }} <small>kWh</small></strong></div></div><div class="summary-divider"></div><div class="summary-stat"><span class="metric-label">AVERAGE OUTPUT</span><strong>{{ average_power_kw|floatformat:1 }} <small>kW</small></strong></div><div class="summary-stat"><span class="metric-label">SITE CAPACITY</span><strong>{{ forecast.site.total_capacity_kw|floatformat:1 }} <small>kW</small></strong></div></div>
+<div class="two-panel"><div class="info-panel"><div class="eyebrow">SAVED SITE INPUTS</div><h2>Forecast assumptions</h2><div class="detail-list"><div><span>Location</span><strong>{{ forecast.site.location }}</strong></div><div><span>Coordinates</span><strong>{{ forecast.site.latitude }}, {{ forecast.site.longitude }}</strong></div><div><span>Wind capacity</span><strong>{{ forecast.site.wind_capacity_kw }} kW</strong></div><div><span>Solar capacity</span><strong>{{ forecast.site.solar_capacity_kw }} kW</strong></div><div><span>System losses</span><strong>{{ forecast.site.system_loss_percent }}%</strong></div><div><span>Weather source</span><strong>Open-Meteo</strong></div></div></div><div class="info-panel"><div class="eyebrow">MODEL INFORMATION</div><h2>Transparent estimates</h2><p class="model-description">Wind output uses a simplified 3/12/25 m/s cut-in/rated/cut-out curve. Solar output uses forecast shortwave irradiance, site capacity, temperature adjustment, and configured system losses.</p><div class="detail-list"><div><span>Model validation</span><strong>Not evaluated</strong></div><div><span>Accuracy metrics</span><strong>Unavailable without measured output</strong></div><div><span>Forecast horizon</span><strong>{{ forecast.horizon_hours }} hours</strong></div></div></div></div>
+<div class="chart-card"><div class="chart-heading"><div><div class="eyebrow">PREDICTED GENERATION</div><h2>Hourly power output</h2></div><div class="chart-legend"><span><i class="legend-wind"></i> Wind</span><span><i class="legend-solar"></i> Solar</span><span><i class="legend-total"></i> Total</span></div></div><div class="chart-canvas"><canvas id="forecastChart" aria-label="Hourly forecast chart"></canvas></div></div>
+<div class="section-heading"><div><div class="eyebrow">WEATHER + GENERATION</div><h2>Hourly breakdown</h2></div></div>
+<div class="table-wrap"><table><thead><tr><th>TIME (UTC)</th><th>TEMP</th><th>WIND SPEED / DIR</th><th>HUMIDITY</th><th>CLOUD / RAIN</th><th>IRRADIANCE</th><th>WIND OUTPUT</th><th>SOLAR OUTPUT</th><th>TOTAL</th></tr></thead><tbody>{% for point in points %}<tr><td class="table-primary">{{ point.timestamp|date:"M j, H:i" }}</td><td>{{ point.temperature_c|floatformat:1 }} °C</td><td>{{ point.wind_speed_ms|floatformat:1 }} m/s · {{ point.wind_direction_deg|floatformat:0 }}°</td><td>{% if point.relative_humidity_percent != None %}{{ point.relative_humidity_percent }}%{% else %}—{% endif %}</td><td>{{ point.cloud_cover_percent }}% · {% if point.precipitation_probability_percent != None %}{{ point.precipitation_probability_percent }}%{% else %}—{% endif %}</td><td>{{ point.irradiance_wm2|floatformat:0 }} W/m²</td><td>{{ point.wind_power_kw|floatformat:2 }} kW</td><td>{{ point.solar_power_kw|floatformat:2 }} kW</td><td class="table-energy">{{ point.total_power_kw|floatformat:2 }} kW</td></tr>{% endfor %}</tbody></table></div>
+<div class="footnote">Estimates use Open-Meteo hourly weather data, a simplified wind power curve (3 m/s cut-in, 12 m/s rated, 25 m/s cut-out), solar irradiance, site capacity, temperature adjustment, and configured system losses. Actual generation may differ.</div>
+{% endblock %}
+{% block scripts %}
+{{ chart_labels|json_script:"chart-labels" }}{{ wind_data|json_script:"wind-data" }}{{ solar_data|json_script:"solar-data" }}{{ total_data|json_script:"total-data" }}
+<script>
+const labels = JSON.parse(document.getElementById("chart-labels").textContent);
+const wind = JSON.parse(document.getElementById("wind-data").textContent);
+const solar = JSON.parse(document.getElementById("solar-data").textContent);
+const total = JSON.parse(document.getElementById("total-data").textContent);
+new Chart(document.getElementById("forecastChart"), {
+    type: "line",
+    data: { labels, datasets: [
+        { label: "Wind", data: wind, borderColor: "#4b8ff5", backgroundColor: "#4b8ff51a", fill: true, tension: .35, pointRadius: 0, borderWidth: 2 },
+        { label: "Solar", data: solar, borderColor: "#e7b848", backgroundColor: "#e7b8481a", fill: true, tension: .35, pointRadius: 0, borderWidth: 2 },
+        { label: "Total", data: total, borderColor: "#18815f", backgroundColor: "#18815f18", fill: true, tension: .35, pointRadius: 0, borderWidth: 2.5 }
+    ]},
+    options: { responsive: true, maintainAspectRatio: false, interaction: { intersect: false, mode: "index" }, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 12, color: "#80918b" } }, y: { beginAtZero: true, title: { display: true, text: "Power (kW)", color: "#80918b" }, grid: { color: "#edf1ef" }, ticks: { color: "#80918b" } } } }
+});
+</script>
+{% endblock %}
