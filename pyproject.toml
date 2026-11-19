@@ -1,2 +1,17 @@
-  [tool.vercel]
-  entrypoint = "renewables.wsgi:application"
+[project]
+name = "ecopredict"
+version = "1.0.0"
+requires-python = ">=3.12"
+dependencies = [
+    "asgiref==3.12.1",
+    "Django==5.2.19",
+    "sqlparse==0.5.5",
+    "tzdata==2026.3",
+    "python-dotenv==1.2.4",
+    "whitenoise==6.8.2",
+    "dj-database-url==2.3.0",
+    "psycopg2-binary==2.9.10",
+]
+
+[tool.vercel]
+entrypoint = "renewables.wsgi:application"
